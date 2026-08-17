@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="zh‑CN">
+<head>
+    <meta charset="UTF‑8">
+    <meta name="viewport" content="width=device‑width, initial‑scale=1.0">
+    <title>森一的记账单</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        *{margin:0;padding:0;box‑sizing:border‑box;font‑family:system‑ui,‑apple‑system,BlinkMacSystemFont,"Segoe UI"}
+        body{background:#f7f9fa;color:#222;padding‑bottom:80px;max‑width:720px;margin:0 auto}
+        .header{background:#42b983;color:white;padding:18px 16px}
+        .header h2{font‑size:20px;font‑weight:600}
+        .stat‑row{display:flex;gap:10px;margin‑top:12px}
+        .stat‑item{flex:1;background:rgba(255,255,255,0.15);border‑radius:10px;padding:12px 8px;text‑align:center}
+        .stat‑item>div:first‑child{font‑size:13px;opacity:0.9}
+        .stat‑item>div:last‑child{font‑size:18px;margin‑top:4px;font‑weight:500}
+        .card{background:#fff;margin:12px;border‑radius:12px;padding:14px;box‑shadow:0 1px 4px rgba(0,0,0,0.08)}
+        .card h4{font‑size:15px;margin‑bottom:10px;color:#333}
+        .float‑btn{position:fixed;right:20px;bottom:20px;width:60px;height:60px;border‑radius:50%;background:#42b983;color:#fff;font‑size:30px;border:none;box‑shadow:0 4px 14px rgba(66,185,131,0.35);z‑index:99;cursor:pointer}
+        .modal{position:fixed;inset:0;background:rgba(0,0,0,0.45);display:none;align‑items:flex‑end;z‑index:100}
+        .modal‑content{width:100%;background:#fff;border‑radius:16px 16px 0 0;padding:22px 20px;max‑height:85vh;overflow‑y:auto}
+        .modal‑title{font‑size:18px;font‑weight:600;margin‑bottom:18px;text‑align:center}
+        .form‑item{margin‑bottom:16px}
+        label{display:block;margin‑bottom:6px;font‑size:14px;color:#555}
+        input,select,textarea{width:100%;border:1px solid #ddd;border‑radius:8px;padding:12px;font‑size:16px;background:#fff}
+        textarea{min‑height:70px;resize:none}
+        .btn‑group{display:flex;gap:12px;margin‑top:8px}
+        button{padding:13px;border‑radius:8px;border:none;font‑size:16px;cursor:pointer;width:100%;margin‑top:8px}
+        .btn‑save{background:#42b983;color:#fff}
+        .btn‑cancel{background:#eeeeee;color:#333}
+        .btn‑export‑data{background:#409eff;color:#fff}
+        .btn‑export‑template{background:#009688;color:#fff}
+        .btn‑import{background:#e6a23c;color:#fff}
+        .btn‑edit{color:#409eff;background:transparent;border:none;font‑size:14px;padding:4px 6px;cursor:pointer;width:auto;margin:0}
+        .btn‑del{color:#f56c6c;background:transparent;border:none;font‑size:14px;padding:4px 6px;cursor:pointer;width:auto;margin:0}
+        .bill‑item{padding:14px 0;border‑bottom:1px solid #f1f1f1;display:flex;justify‑content:space‑between;align‑items:flex‑start}
+        .bill‑left{flex:1}
+        .bill‑top{font‑size:15px}
+        .bill‑remark{font‑size:12px;color:#999;margin‑top:4px}
+        .bill‑op{display:flex;gap:4px;align‑items:center;flex‑shrink:0}
+        .money‑exp{color:#f56c6c;font‑size:16px;font‑weight:500}
+        .money‑inc{color:#42b983;font‑size:16px;font‑weight:500}
+        .tab‑bar{display:flex;background:#fff;position:fixed;bottom:0;left:0;right:0;max‑width:720px;margin:0 auto;border‑top:1px solid #eee}
+        .tab{flex:1;text‑align:center;padding:11px 0;font‑size:14px;color:#666}
+        .page{display:none;padding:12px;padding‑bottom:75px}
+        .page.active{display:block}
+        canvas{width:100% !important;height:260px !important}
+        .avg‑info{margin‑top:8px;font‑size:14px;line‑height:1.8;color:#444}
+        .empty‑tip{padding:30px 10px;text‑align:center;color:#999;font‑size:14px}
+        .filter‑bar{margin:12px;background:#fff;border‑radius:12px;padding:12px}
+        .file‑input{display:none;}
+        .login‑wrap{padding:40px 20px;max‑width:420px;margin:0 auto}
+        .tip{font‑size:13px;color:#888;margin:8px 0;}
+    </style>
+</head>
+<body>
+<div id="app">
+    <!--登录注册页-->
+    <div id="page‑login" class="page active">
+        <div class="login‑wrap">
+            <h2 style="text‑align:center;margin‑bottom:24px">森一的记账单</h2>
+            <div class="form‑item">
+                <label>邮箱</label>
+                <input type="email" id="login‑email" placeholder="请输入邮箱">
+            </div>
+            <div class="form‑item">
+                <label>密码</label>
+                <input type="password" id="login‑pwd" placeholder="密码至少6位">
+            </div>
+            <button class="btn‑save" onclick="doLogin()">登录</button>
+            <button class="btn‑export‑template" onclick="doRegister()">注册账号</button>
+            <div class="tip">注册后数据保存在云端，多设备同步</div>
+        </div>
+    </div>
+
+    <!--首页-->
+    <div id="page‑home" class="page">
+        <div class="header">
+            <div style="display:flex;justify‑content:space‑between;align‑items:center">
+                <h2>森一的记账单</h2>
+                <button style="width:auto;padding:6px 10px;font‑size:13px;background:rgba(255,255,255,0.2)" onclick="logout()">退出</button>
+            </div>
+            <div class="stat‑row">
+                <div class="stat‑item">
+                    <div>本月收入</div>
+                    <div id="month‑inc">0.00</div>
+                </div>
+                <div class="stat‑item">
+                    <div>本月支出</div>
+                    <div id="month‑exp">0.00</div>
+                </div>
+                <div class="stat‑item">
+                    <div>本月结余</div>
+                    <div id="month‑bal">0.00</div>
+                </div>
+            </div>
+        </div>
+        <div class="card">
+            <div>📊 本月日均消费：<span id="day‑avg">0.00</span> 元</div>
+        </div>
+        <div class="card">
+            <h4>本月支出走势</h4>
+            <canvas id="homeChart"></canvas>
+        </div>
+        <div class="card">
+            <h4>最近账单</h4>
+            <div id="bill‑list"></div>
+        </div>
+    </div>
+
+    <!--统计页：导出样表、备份、导入-->
+    <div id="page‑stat" class="page">
+        <div class="header">
+            <div style="display:flex;justify‑content:space‑between;align‑items:center">
+                <h2>数据分析</h2>
+                <button style="width:auto;padding:6px 10px;font‑size:13px;background:rgba(255,255,255,0.2)" onclick="logout()">退出</button>
+            </div>
+        </div>
+        <div class="card">
+            <h4>每日消费趋势</h4>
+            <canvas id="lineDayChart"></canvas>
+        </div>
+        <div class="card">
+            <h4>各分类每日走势</h4>
+            <canvas id="lineCatChart"></canvas>
+        </div>
+        <div class="card">
+            <h4>本月支出分类占比</h4>
+            <canvas id="pieChart"></canvas>
+        </div>
+        <div class="card avg‑info" id="stat‑text"></div>
+        <div class="card">
+            <button class="btn‑export‑template" onclick="exportTemplate()">📄导出空白样表模板CSV</button>
+            <button class="btn‑export‑data" onclick="exportCsv()">💾导出全部账单备份CSV</button>
+            <button class="btn‑import" onclick="triggerImport()">📥导入CSV（样表/备份）</button>
+            <input class="file‑input" id="fileInput" type="file" accept=".csv" />
+        </div>
+    </div>
+
+    <!--账单列表页【月份筛选】-->
+    <div id="page‑bill" class="page">
+        <div class="header">
+            <div style="display:flex;justify‑content:space‑between;align‑items:center">
+                <h2>全部账单</h2>
+                <button style="width:auto;padding:6px 10px;font‑size:13px;background:rgba(255,255,255,0.2)" onclick="logout()">退出</button>
+            </div>
+        </div>
+        <div class="filter‑bar">
+            <label>选择月份：</label>
+            <select id="monthFilter" onchange="renderBillList()"></select>
+        </div>
+        <div class="card" id="all‑bill‑list"></div>
+    </div>
+
+    <!--弹窗：新增/编辑账单-->
+    <div class="modal" id="modalAdd">
+        <div class="modal‑content">
+            <div class="modal‑title" id="modalTitle">记一笔</div>
+            <input type="hidden" id="editId">
+            <div class="form‑item">
+                <label>收支类型</label>
+                <select id="rec‑type">
+                    <option value="expense">支出</option>
+                    <option value="income">收入</option>
+                </select>
+            </div>
+            <div class="form‑item">
+                <label>金额</label>
+                <input type="number" step="0.01" id="rec‑money" placeholder="请输入金额">
+            </div>
+            <div class="form‑item">
+                <label>分类</label>
+                <select id="rec‑cat"></select>
+            </div>
+            <div class="form‑item">
+                <label>日期</label>
+                <input type="date" id="rec‑date">
+            </div>
+            <div class="form‑item">
+                <label>备注</label>
+                <textarea id="rec‑remark" placeholder="填写备注（选填）"></textarea>
+            </div>
+            <div class="btn‑group">
+                <button class="btn‑cancel" onclick="closeModal()">取消</button>
+                <button class="btn‑save" onclick="saveRecord()">保存</button>
+            </div>
+        </div>
+    </div>
+
+    <button class="float‑btn" onclick="openModal()">+</button>
+
+    <!--底部tab-->
+    <div class="tab‑bar">
+        <div class="tab" onclick="switchPage('page‑home')">首页</div>
+        <div class="tab" onclick="switchPage('page‑bill')">账单</div>
+        <div class="tab" onclick="switchPage('page‑stat')">统计</div>
+    </div>
+</div>
+
+<script>
+// ============在这里替换为你自己Supabase的信息============
+const SUPABASE_URL = "你的‑project‑url";
+const SUPABASE_ANON_KEY = "你的‑anon‑key";
+// ========================================================
+
+const { createClient } = window.supabase;
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+const categories = {
+    expense:["餐饮","交通","购物","住房","娱乐","医疗","学习","人情","其他支出"],
+    income:["工资","兼职","红包","理财","其他收入"]
+};
+const allCatList = [...categories.expense,...categories.income];
+let billList = [];
+let chartHome,chartDay,chartCat,chartPie;
+
+// 登录注册
+async function doLogin(){
+    const email = document.getElementById("login‑email").value.trim();
+    const pwd = document.getElementById("login‑pwd").value.trim();
+    const {error} = await supabase.auth.signInWithPassword({email,password:pwd});
+    if(error) return alert(error.message);
+    await afterLogin();
+}
+async function doRegister(){
+    const email = document.getElementById("login‑email").value.trim();
+    const pwd = document.getElementById("login‑pwd").value.trim();
+    const {error} = await supabase.auth.signUp({email,password:pwd});
+    if(error) return alert(error.message);
+    alert("注册成功，请去邮箱确认激活（部分环境可直接登录）");
+}
+async function logout(){
+    await supabase.auth.signOut();
+    showLoginPage();
+}
+function showLoginPage(){
+    document.querySelectorAll(".page").forEach(p=>p.classList.remove("active"));
+    document.getElementById("page‑login").classList.add("active");
+}
+async function afterLogin(){
+    document.querySelectorAll(".page").forEach(p=>p.classList.remove("active"));
+    document.getElementById("page‑home").classList.add("active");
+    await loadBillsCloud();
+    renderAll();
+}
+
+// 检查登录状态
+(async ()=>{
+    const {data:{session}} = await supabase.auth.getSession();
+    if(session) await afterLogin();
+    else showLoginPage();
+    supabase.auth.onAuthStateChange((_event,session)=>{
+        if(session) afterLogin();
+        else showLoginPage();
+    })
+})();
+
+//云端读取账单
+async function loadBillsCloud(){
+    const {data,error} = await supabase.from("bills").select("*").order("bill_date",{asc:false});
+    if(!error) billList = data;
+}
+//云端新增
+async function addBillCloud(item){
+    const {data} = await supabase.from("bills").insert([item]).select();
+    return data[0];
+}
+//云端更新
+async function updateBillCloud(id,payload){
+    await supabase.from("bills").update(payload).eq("id",id);
+}
+//云端删除
+async function delBillCloud(id){
+    await supabase.from("bills").delete().eq("id",id);
+}
+
+//导出模板
+function exportTemplate(){
+    const header = "ID,收支类型,金额,分类,备注,日期\n";
+    const sampleRow = ",支出,25.50,餐饮,午餐,2026‑08‑17\n";
+    downloadFile(header+sampleRow,"森一的记账单‑样表模板.csv","text/csv;charset=utf‑8");
+}
+function downloadFile(text,filename,mime){
+    const blob = new Blob(["\uFEFF"+text],{type:mime});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = filename; a.click();
+    URL.revokeObjectURL(url);
+}
+function exportCsv(){
+    if(!billList.length) return alert("暂无账单");
+    const header = "ID,收支类型,金额,分类,备注,日期\n";
+    const rows = billList.map(r=>{
+        const t = r.type==="expense"?"支出":"收入";
+        const note = `"${String(r.remark||"").replace(/"/g,'""')}"`;
+        return `${r.id},${t},${r.amount},${r.category},${note},${r.bill_date}`;
+    })
+    downloadFile(header+rows.join("\n"),"森一的记账单‑备份.csv","text/csv;charset=utf‑8");
+}
+function triggerImport(){document.getElementById("fileInput").click();}
+document.getElementById("fileInput").addEventListener("change",async e=>{
+    const f = e.target.files[0];
+    if(!f) return;
+    const text = await f.text();
+    const lines = text.replace(/\r/g,"\n").split("\n").filter(x=>x.trim());
+    let ok=0,fail=0;
+    for(let i=1;i<lines.length;i++){
+        const line = lines[i];
+        if(!line.trim()) continue;
+        const parts = parseCsvLine(line);
+        if(parts.length<6){fail++;continue;}
+        const [_id,ioType,moneyStr,cat,remark,dateStr] = parts;
+        const money = parseFloat(moneyStr);
+        if(!["支出","收入"].includes(ioType)||isNaN(money)||money<=0||!allCatList.includes(cat)||!/^\d{4}\-\d{2}\-\d{2}$/.test(dateStr)){
+            fail++;continue;
+        }
+        const type = ioType==="支出"?"expense":"income";
+        await addBillCloud({type,amount:money,category:cat,remark:(remark||"").trim(),bill_date:dateStr});
+        ok++;
+    }
+    await loadBillsCloud();
+    renderAll();
+    alert(`导入完成：成功${ok}条，跳过${fail}条`);
+    e.target.value="";
+})
+function parseCsvLine(line){
+    const res=[];let buf="";let inQ=false;
+    for(let c of line){
+        if(c==='"') inQ=!inQ;
+        else if(c===','&&!inQ){res.push(buf);buf="";}
+        else buf+=c;
+    }
+    res.push(buf);
+    return res;
+}
+
+//弹窗
+function openModal(){
+    document.getElementById("modalTitle").innerText = "记一笔";
+    document.getElementById("editId").value = "";
+    document.getElementById("rec‑date").value = new Date().toISOString().slice(0,10);
+    document.getElementById("rec‑money").value = "";
+    document.getElementById("rec‑remark").value = "";
+    document.getElementById("rec‑type").value = "expense";
+    refreshCatSelect();
+    document.getElementById("modalAdd").style.display = "flex";
+}
+function openEditModal(id){
+    const item = billList.find(x=>x.id===id);
+    if(!item) return;
+    document.getElementById("modalTitle").innerText = "编辑账单";
+    document.getElementById("editId").value = String(id);
+    document.getElementById("rec‑type").value = item.type;
+    refreshCatSelect();
+    document.getElementById("rec‑cat").value = item.category;
+    document.getElementById("rec‑money").value = item.amount;
+    document.getElementById("rec‑date").value = item.bill_date;
+    document.getElementById("rec‑remark").value = item.remark||"";
+    document.getElementById("modalAdd").style.display = "flex";
+}
+function closeModal(){document.getElementById("modalAdd").style.display="none";}
+document.getElementById("modalAdd").addEventListener("click",e=>{if(e.target===document.getElementById("modalAdd")) closeModal();})
+function refreshCatSelect(){
+    const t = document.getElementById("rec‑type").value;
+    const sel = document.getElementById("rec‑cat");
+    sel.innerHTML="";
+    categories[t].forEach(c=>{const o=document.createElement("option");o.value=c;o.innerText=c;sel.appendChild(o);})
+}
+document.getElementById("rec‑type").addEventListener("change",refreshCatSelect);
+
+async function saveRecord(){
+    const editId = document.getElementById("editId").value;
+    const type = document.getElementById("rec‑type").value;
+    const money = parseFloat(document.getElementById("rec‑money").value);
+    const cat = document.getElementById("rec‑cat").value;
+    const dt = document.getElementById("rec‑date").value;
+    const rem = document.getElementById("rec‑remark").value.trim();
+    if(isNaN(money)||money<=0) return alert("请输入有效金额");
+    if(!dt) return alert("请选择日期");
+    if(editId){
+        await updateBillCloud(Number(editId),{type,amount:money,category:cat,remark:rem,bill_date:dt});
+    }else{
+        await addBillCloud({type,amount:money,category:cat,remark:rem,bill_date:dt});
+    }
+    closeModal();
+    await loadBillsCloud();
+    renderAll();
+}
+async function deleteRecord(id){
+    if(!confirm("确定删除这条账单，不可恢复？")) return;
+    await delBillCloud(id);
+    await loadBillsCloud();
+    renderAll();
+}
+
+function switchPage(id){
+    document.querySelectorAll(".page").forEach(p=>p.classList.remove("active"));
+    document.getElementById(id).classList.add("active");
+    if(id==="page‑bill") fillMonthFilter();
+    renderAll();
+}
+function fillMonthFilter(){
+    const sel = document.getElementById("monthFilter");
+    const ms = [...new Set(billList.map(r=>r.bill_date.slice(0,7)))].sort().reverse();
+    sel.innerHTML = `<option value="">全部账单</option>`;
+    ms.forEach(m=>{const o=document.createElement("option");o.value=m;o.innerText=m;sel.appendChild(o);})
+}
+
+function renderAll(){renderHome();renderBillList();renderStat();}
+
+function renderHome(){
+    const now = new Date();
+    const curMonth = now.toISOString().slice(0,7);
+    const monthData = billList.filter(r=>r.bill_date.startsWith(curMonth));
+    const inc = monthData.filter(r=>r.type==="income").reduce((s,i)=>s+Number(i.amount),0);
+    const exp = monthData.filter(r=>r.type==="expense").reduce((s,i)=>s+Number(i.amount),0);
+    document.getElementById("month‑inc").innerText = inc.toFixed(2);
+    document.getElementById("month‑exp").innerText = exp.toFixed(2);
+    document.getElementById("month‑bal").innerText = (inc‑exp).toFixed(2);
+
+    const expDays = new Set(monthData.filter(r=>r.type==="expense").map(x=>x.bill_date));
+    const avg = expDays.size>0 ? exp/expDays.size : 0;
+    document.getElementById("day‑avg").innerText = avg.toFixed(2);
+
+    const recent = [...billList].sort((a,b)=>new Date(b.bill_date)-new Date(a.bill_date)).slice(0,8);
+    renderBillHtml("bill‑list",recent);
+    drawHomeChart(monthData);
+}
+function renderBillHtml(domId,arr){
+    const dom = document.getElementById(domId);
+    dom.innerHTML="";
+    if(!arr.length){dom.innerHTML=`<div class="empty‑tip">暂无记账记录</div>`;return;}
+    arr.forEach(r=>{
+        const div = document.createElement("div");
+        div.className="bill‑item";
+        const sign = r.type==="expense"?"‑":"+";
+        const cls = r.type==="expense"?"money‑exp":"money‑inc";
+        div.innerHTML = `
+        <div class="bill‑left">
+            <div class="bill‑top">${r.bill_date} · ${r.category}</div>
+            <div class="bill‑remark">${r.remark||"无备注"}</div>
+        </div>
+        <div class="bill‑op">
+            <div class="${cls}">${sign}${Number(r.amount).toFixed(2)}</div>
+            <button class="btn‑edit" onclick='openEditModal(${r.id})'>编辑</button>
+            <button class="btn‑del" onclick='deleteRecord(${r.id})'>删除</button>
+        </div>`;
+        dom.appendChild(div);
+    })
+}
+function renderBillList(){
+    fillMonthFilter();
+    const selVal = document.getElementById("monthFilter").value;
+    let arr = [...billList];
+    if(selVal) arr = arr.filter(r=>r.bill_date.startsWith(selVal));
+    arr.sort((a,b)=>new Date(b.bill_date)-new Date(a.bill_date));
+    renderBillHtml("all‑bill‑list",arr);
+}
+
+function destroyChart(c){try{if(c)c.destroy();}catch(e){}}
+function drawHomeChart(monthData){
+    destroyChart(chartHome);
+    const expData = monthData.filter(r=>r.type==="expense");
+    const group = {};
+    expData.forEach(r=>{group[r.bill_date]=(group[r.bill_date]||0)+Number(r.amount);})
+    const keys = Object.keys(group).sort();
+    const ctx = document.getElementById("homeChart").getContext("2d");
+    chartHome = new Chart(ctx,{
+        type:"line",
+        data:{labels:keys,datasets:[{label:"支出",data:keys.map(k=>group[k]),borderColor:"#f56c6c",fill:true,backgroundColor:"rgba(245,108,108,0.14)"}]},
+        options:{responsive:true,maintainAspectRatio:false,scales:{y:{beginAtZero:true}},plugins:{legend:{position:"top"}}}
+    })
+}
+
+function renderStat(){
+    destroyChart(chartDay);destroyChart(chartCat);destroyChart(chartPie);
+    const expAll = billList.filter(r=>r.type==="expense");
+    const dayGroup = {};
+    expAll.forEach(r=>{dayGroup[r.bill_date]=(dayGroup[r.bill_date]||0)+Number(r.amount);})
+    const dayKeys = Object.keys(dayGroup).sort();
+    const ctx1 = document.getElementById("lineDayChart").getContext("2d");
+    chartDay = new Chart(ctx1,{
+        type:"line",
+        data:{labels:dayKeys,datasets:[{label:"每日消费",data:dayKeys.map(k=>dayGroup[k]),borderColor:"#f56c6c",fill:true,backgroundColor:"rgba(245,108,108,0.12)"}]},
+        options:{responsive:true,maintainAspectRatio:false,scales:{y:{beginAtZero:true}}}
+    })
+
+    const catSet = [...new Set(expAll.map(x=>x.category))];
+    const colors = ["#f56c6c","#42b983","#409eff","#e6a23c","#909399","#722ed1","#b37feb","#ff7d00"];
+    const datasets = catSet.map((cat,idx)=>{
+        const map = {};
+        expAll.filter(x=>x.category===cat).forEach(r=>{map[r.bill_date]=(map[r.bill_date]||0)+Number(r.amount);})
+        return {label:cat,data:dayKeys.map(d=>map[d]||0),borderColor:colors[idx%colors.length],fill:false};
+    })
+    const ctx2 = document.getElementById("lineCatChart").getContext("2d");
+    chartCat = new Chart(ctx2,{type:"line",data:{labels:dayKeys,datasets},options:{responsive:true,maintainAspectRatio:false,scales:{y:{beginAtZero:true}}}});
+
+    const curMonth = new Date().toISOString().slice(0,7);
+    const monthExp = expAll.filter(r=>r.bill_date.startsWith(curMonth));
+    const pieMap = {};
+    monthExp.forEach(r=>{pieMap[r.category]=(pieMap[r.category]||0)+Number(r.amount);})
+    const pieLabels = Object.keys(pieMap);
+    const pieValues = pieLabels.map(k=>pieMap[k]);
+    const pieCtx = document.getElementById("pieChart").getContext("2d");
+    chartPie = new Chart(pieCtx,{
+        type:"pie",
+        data:{labels:pieLabels,datasets:[{data:pieValues,backgroundColor:colors}]},
+        options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:"right"}}}
+    })
+
+    const dayAvg = dayKeys.length>0 ? expAll.reduce((s,i)=>s+Number(i.amount),0)/dayKeys.length : 0;
+    let html = `<div>📅全部时间每日平均消费：<b>${dayAvg.toFixed(2)}</b>元</div>`;
+    catSet.forEach(cat=>{
+        const arr = expAll.filter(x=>x.category===cat);
+        const sum = arr.reduce((s,i)=>s+Number(i.amount),0);
+        const avg = arr.length>0 ? sum/arr.length :0;
+        html += `<div>▪${cat}：总${sum.toFixed(2)}元，单笔平均${avg.toFixed(2)}元</div>`;
+    })
+    document.getElementById("stat‑text").innerHTML = html;
+}
+</script>
+</body>
+</html>
